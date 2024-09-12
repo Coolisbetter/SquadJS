@@ -120,7 +120,11 @@ export default class SquadServer extends EventEmitter {
 
     this.rcon.on('UNPOSSESSED_ADMIN_CAMERA', async (data) => {
       data.player = await this.getPlayerBySteamID(data.steamID);
-      data.duration = data.time.getTime() - this.adminsInAdminCam[data.steamID].getTime();
+      if (this.adminsInAdminCam[data.steamID]) {
+        data.duration = data.time.getTime() - this.adminsInAdminCam[data.steamID].getTime();
+      } else {
+        data.duration = 0;
+      }
 
       delete this.adminsInAdminCam[data.steamID];
 
@@ -185,11 +189,10 @@ export default class SquadServer extends EventEmitter {
 
     this.logParser.on('NEW_GAME', async (data) => {
       data.layer = await Layers.getLayerByClassname(data.layerClassname);
-
       this.layerHistory.unshift({ layer: data.layer, time: data.time });
       this.layerHistory = this.layerHistory.slice(0, this.layerHistoryMaxLength);
-
       this.currentLayer = data.layer;
+      await this.updateAdmins();
       this.emit('NEW_GAME', data);
     });
 
@@ -290,11 +293,10 @@ export default class SquadServer extends EventEmitter {
     });
 
     this.logParser.on('SQUAD_CREATED', async (data) => {
-
-      data.player = await this.getPlayerBySteamID(data.playerSteamID, true)
-      delete data.playerName
-      delete data.playerSteamID
-      delete data.squadID
+      data.player = await this.getPlayerBySteamID(data.playerSteamID, true);
+      delete data.playerName;
+      delete data.playerSteamID;
+      delete data.squadID;
 
       this.emit('SQUAD_CREATED', data);
     });
@@ -322,6 +324,10 @@ export default class SquadServer extends EventEmitter {
       if (perm in perms) ret.push(steamID);
     }
     return ret;
+  }
+
+  async updateAdmins() {
+    this.admins = await fetchAdminLists(this.options.adminLists);
   }
 
   async updatePlayerList() {
